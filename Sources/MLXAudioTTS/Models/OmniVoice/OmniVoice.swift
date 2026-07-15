@@ -246,7 +246,10 @@ public final class OmniVoiceModel: Module, SpeechGenerationModel, @unchecked Sen
         let ovParams = OmniVoiceGenerateParameters()
         let (stream, continuation) = AsyncThrowingStream<AudioGeneration, Error>.makeStream()
         let task = Task { @Sendable [weak self] in
-            guard let self else { return }
+            guard let self else {
+                continuation.finish(throwing: AudioGenerationError.modelNotInitialized("Model deallocated"))
+                return
+            }
             do {
                 guard tokenizer != nil else {
                     throw AudioGenerationError.modelNotInitialized("Tokenizer not loaded")
@@ -274,7 +277,7 @@ public final class OmniVoiceModel: Module, SpeechGenerationModel, @unchecked Sen
                 continuation.finish(throwing: error)
             }
         }
-        continuation.onTermination = { _ in task.cancel() }
+        continuation.onTermination = { @Sendable _ in task.cancel() }
         return stream
     }
 
