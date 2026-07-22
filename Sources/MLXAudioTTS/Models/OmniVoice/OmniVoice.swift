@@ -889,10 +889,13 @@ public final class OmniVoiceModel: Module, SpeechGenerationModel, @unchecked Sen
         if !extra.isEmpty {
             print("[OmniVoiceModel] WARNING: \(extra.count) extra keys after sanitize: \(extra.prefix(10))")
         }
-        // Weights run as float32: the diffusion loop is sensitive to logit
-        // precision and the reference checkpoint ships fp32 (no-op there).
-        let float32Weights = sanitizedWeights.mapValues { $0.asType(.float32) }
-        try model.update(parameters: ModuleParameters.unflattened(float32Weights), verify: .noUnusedKeys)
+        // Weights load in the checkpoint's own dtype (bf16 for the
+        // mlx-community release): half the residency and memory traffic of the
+        // old unconditional fp32 upcast. The diffusion loop's precision-
+        // sensitive scoring math is unaffected — generateAudio casts logits to
+        // float32 at every forward call site before CFG/argmax. fp32
+        // checkpoints continue to load as fp32.
+        try model.update(parameters: ModuleParameters.unflattened(sanitizedWeights), verify: .noUnusedKeys)
         eval(model)
 
         // Load text tokenizer
